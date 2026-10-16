@@ -1,0 +1,63 @@
+name: Pipeline CI - Proyecto CLARA
+# Configurar el Disparador (Trigger / Webhook en cada git push)
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Permisos del Token de Acceso de GitHub para leer el repo y publicar reportes
+
+# El servidor de CI/CD se conecta y descarga el código mediante actions/checkout@v4 
+# usando el token de acceso automático de GitHub con permisos de lectura y escritura habilitados.
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  # Trabajo (Job) y Etapas del Pipeline de CI
+  build_and_test:
+    name: Compilación y Pruebas Unitarias (.NET)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Conexión y descarga del repositorio Git remoto
+      - name: 1. Conectar y clonar el repositorio Git
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar entorno de .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Etapa de Compilación 
+      - name: 3. Etapa de Compilación (Restore & Build)
+        run: |
+          echo "Instalando dependencias y compilando el proyecto backend_CLARA..."
+          dotnet restore backend_CLARA/backend_CLARA.csproj
+          dotnet build backend_CLARA/backend_CLARA.csproj --configuration Release --no-restore
+
+      # Etapa de Pruebas Unitarias y Generación de XML JUnit
+      - name: 4. Etapa de Pruebas Unitarias (Test + JUnit XML)
+        run: |
+          echo "Ejecutando pruebas unitarias automatizadas..."
+          dotnet test backend_CLARA.Tests/backend_CLARA.Tests.csproj --configuration Release --logger "junit;LogFilePath=../TestResults/junit-report.xml"
+
+      # Interpretación del Reporte JUnit en el Servidor CI
+      - name: 5. Publicar e Interpretar Reporte JUnit en GitHub Actions
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: 'TestResults/junit-report.xml'
+          check_name: 'Reporte de Pruebas JUnit - CLARA'
+          summary: true
+
+      - name: 6. Guardar archivo JUnit XML como descargable (Evidencia)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reporte-junit-xml
+          path: TestResults/junit-report.xml
