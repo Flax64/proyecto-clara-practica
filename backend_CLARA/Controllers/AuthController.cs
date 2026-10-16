@@ -1,11 +1,15 @@
 ﻿using backend_CLARA.Models;
+using Google.Apis.Auth;
 using Microsoft.AspNetCore.Mvc;
 using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net;
 using System.Net.Mail;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.RateLimiting;
 // No necesitas agregar el "using BCrypt.Net" arriba, usaremos la ruta completa para evitar conflictos
 
 namespace backend_CLARA.Controllers
@@ -16,12 +20,16 @@ namespace backend_CLARA.Controllers
     {
         private readonly String _connectionString = ConexionDB.Cadena;
 
+        // Client ID de Google Cloud (el mismo que usa la app de escritorio)
+        private const string GOOGLE_CLIENT_ID = "229034863022-43f0bcin64910ceh6041venb9juvndvl.apps.googleusercontent.com";
+
         // Nuestra memoria RAM: Diccionario que asocia un Token con el Estado de Recuperación
         private static Dictionary<string, Models.EstadoRecuperacion> _memoriaTemporal = new Dictionary<string, Models.EstadoRecuperacion>();
 
         // ====================================================================
         // LOGIN DE USUARIOS (CON MIGRACIÓN HÍBRIDA SILENCIOSA)
         // ====================================================================
+        [EnableRateLimiting("limite-auth")]
         [HttpPost("login")]
         public IActionResult Login([FromBody] LoginRequest request)
         {
@@ -33,9 +41,8 @@ namespace backend_CLARA.Controllers
 
                     int? idUsuario = null;
                     string dbPassword = null;
-                    string estatusUsuario = null; // Variable para guardar el estatus
+                    string estatusUsuario = null;
 
-                    // 1. Extraemos los datos y cruzamos con la tabla ESTATUS
                     string Query = @"SELECT u.id_Usuario, u.password_Usuario, e.nombre 
                                      FROM usuarios u 
                                      INNER JOIN estatus e ON u.id_Estatus = e.id_Estatus 
@@ -49,43 +56,37 @@ namespace backend_CLARA.Controllers
                             if (reader.Read())
                             {
                                 idUsuario = reader.GetInt32(0);
-                                dbPassword = reader.GetString(1);
+                                dbPassword = reader.IsDBNull(1) ? null : reader.GetString(1);
                                 estatusUsuario = reader.GetString(2);
                             }
                         }
                     }
 
-                    // Si el estatus es inactivo, lo sacamos de inmediato
-                    if (estatusUsuario == "Inactivo" || estatusUsuario == "INACTIVO" || estatusUsuario == "inactivo")
+                    if (string.Equals(estatusUsuario, "Inactivo", StringComparison.OrdinalIgnoreCase))
                     {
                         return Unauthorized(new { error = "Tu cuenta se encuentra inactiva. Contacta al administrador." });
                     }
 
-                    // 2. Si el usuario existe y está activo, evaluamos la contraseña
                     if (idUsuario != null && dbPassword != null)
                     {
                         bool isValid = false;
                         bool needsUpgrade = false;
 
-                        // Detectar si ya es un Hash de BCrypt (Típicamente miden 60 chars y empiezan con $2)
                         if (dbPassword.StartsWith("$2") && dbPassword.Length >= 59)
                         {
                             isValid = BCrypt.Net.BCrypt.Verify(request.Password, dbPassword);
                         }
                         else
                         {
-                            // Si no es un Hash, lo evaluamos como texto plano
                             if (dbPassword == request.Password)
                             {
                                 isValid = true;
-                                needsUpgrade = true; // Levantamos la bandera para migrarlo
+                                needsUpgrade = true;
                             }
                         }
 
-                        // 3. Si la contraseña (plana o hash) fue correcta, lo dejamos entrar
                         if (isValid)
                         {
-                            // Si entró con texto plano, la encriptamos de inmediato en la Base de Datos
                             if (needsUpgrade)
                             {
                                 string newHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
@@ -98,18 +99,208 @@ namespace backend_CLARA.Controllers
                                 }
                             }
 
-                            // CORRECCIÓN AQUÍ: Ahora enviamos el idUsuario de regreso a Visual Basic
                             return Ok(new { message = "AUTORIZADO", idUsuario = idUsuario.Value });
                         }
                     }
 
-                    // Si no existe el usuario o la contraseña fue mala
                     return Unauthorized(new { error = "Usuario o contraseña incorrectos." });
                 }
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { error = "Error en el servidor al intentar iniciar sesión. Detalles: " + ex.Message });
+            }
+        }
+
+        // ====================================================================
+        // LOGIN CON GOOGLE
+        // Valida el idToken. Si el correo existe -> devuelve idUsuario.
+        // Si no existe -> devuelve registroIncompleto = true con los datos de Google.
+        // ====================================================================
+        [HttpPost("google")]
+        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.IdToken))
+                return BadRequest(new { error = "Falta el token de Google." });
+
+            try
+            {
+                var payload = await ValidarTokenGoogle(request.IdToken);
+
+                using (MySqlConnection conn = new MySqlConnection(_connectionString))
+                {
+                    conn.Open();
+
+                    int? idUsuario = null;
+                    string emailBD = null;
+                    string estatusUsuario = null;
+
+                    string query = @"SELECT u.id_Usuario, u.email_Usuario, e.nombre 
+                                     FROM usuarios u 
+                                     INNER JOIN estatus e ON u.id_Estatus = e.id_Estatus 
+                                     WHERE u.email_Usuario = @correo LIMIT 1";
+
+                    using (MySqlCommand cmd = new MySqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@correo", payload.Email);
+                        using (MySqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                idUsuario = reader.GetInt32(0);
+                                emailBD = reader.GetString(1);
+                                estatusUsuario = reader.GetString(2);
+                            }
+                        }
+                    }
+
+                    // Usuario nuevo: la app debe pedir los datos que faltan
+                    if (idUsuario == null)
+                    {
+                        return Ok(new
+                        {
+                            registroIncompleto = true,
+                            email = payload.Email,
+                            nombre = payload.GivenName ?? "",
+                            apellidos = payload.FamilyName ?? ""
+                        });
+                    }
+
+                    if (string.Equals(estatusUsuario, "Inactivo", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Unauthorized(new { error = "Tu cuenta se encuentra inactiva. Contacta al administrador." });
+                    }
+
+                    return Ok(new
+                    {
+                        registroIncompleto = false,
+                        idUsuario = idUsuario.Value,
+                        email = emailBD
+                    });
+                }
+            }
+            catch (InvalidJwtException)
+            {
+                return Unauthorized(new { error = "Token de Google inválido o expirado." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = "Error en el servidor al iniciar sesión con Google. Detalles: " + ex.Message });
+            }
+        }
+
+        // ====================================================================
+        // REGISTRO CON GOOGLE (completa los datos que Google no entrega)
+        // El correo se toma del token, nunca del cuerpo de la petición.
+        // ====================================================================
+        [HttpPost("google/registrar")]
+        public async Task<IActionResult> GoogleRegistrar([FromBody] GoogleRegistroRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.IdToken))
+                return BadRequest(new { error = "Falta el token de Google." });
+
+            if (string.IsNullOrWhiteSpace(req.Nombre) ||
+                string.IsNullOrWhiteSpace(req.ApellidoPaterno) ||
+                string.IsNullOrWhiteSpace(req.ApellidoMaterno) ||
+                string.IsNullOrWhiteSpace(req.Telefono) ||
+                req.IdGenero <= 0)
+            {
+                return BadRequest(new { error = "Faltan datos obligatorios para el registro." });
+            }
+
+            if (!DateTime.TryParseExact(req.FechaNacimiento, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                                        DateTimeStyles.None, out DateTime fechaNac))
+            {
+                return BadRequest(new { error = "La fecha de nacimiento no tiene un formato válido." });
+            }
+
+            int edad = DateTime.Today.Year - fechaNac.Year;
+            if (fechaNac.Date > DateTime.Today.AddYears(-edad)) edad--;
+            if (fechaNac.Date > DateTime.Today || edad < 18)
+            {
+                return BadRequest(new { error = "Debes ser mayor de 18 años para registrarte." });
+            }
+
+            try
+            {
+                var payload = await ValidarTokenGoogle(req.IdToken);
+
+                using (MySqlConnection conn = new MySqlConnection(_connectionString))
+                {
+                    conn.Open();
+
+                    // 1. Duplicidad
+                    using (MySqlCommand checkCmd = new MySqlCommand("SELECT COUNT(*) FROM usuarios WHERE email_Usuario = @correo", conn))
+                    {
+                        checkCmd.Parameters.AddWithValue("@correo", payload.Email);
+                        if (Convert.ToInt32(checkCmd.ExecuteScalar()) > 0)
+                        {
+                            return BadRequest(new { error = "Este correo ya está registrado en el sistema." });
+                        }
+                    }
+
+                    // 2. Rol de Paciente
+                    int idRol;
+                    using (MySqlCommand rolCmd = new MySqlCommand("SELECT id_Rol FROM roles WHERE nombre = 'Paciente'", conn))
+                    {
+                        idRol = Convert.ToInt32(rolCmd.ExecuteScalar());
+                    }
+
+                    // 3. Contraseña aleatoria (nadie la conoce): así el login normal
+                    //    no puede entrar a esta cuenta y no hay que cambiar la tabla.
+                    string hashAleatorio = BCrypt.Net.BCrypt.HashPassword(
+                        Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"));
+
+                    // 4. Usuario + paciente en una sola transacción
+                    using (MySqlTransaction tx = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            string insertQuery = "INSERT INTO usuarios (id_Genero, id_Estatus, id_Rol, nombre_Usuario, apellido_P, apellido_M, email_Usuario, password_Usuario, telefono, fecha_Nacimiento) " +
+                                                 "VALUES (@idGenero, @idEstatus, @idRol, @nombre, @apellidoP, @apellidoM, @correo, @password, @telefono, @fechaNacimiento)";
+
+                            long idNuevoUsuario;
+                            using (MySqlCommand insertCmd = new MySqlCommand(insertQuery, conn, tx))
+                            {
+                                insertCmd.Parameters.AddWithValue("@idGenero", req.IdGenero);
+                                insertCmd.Parameters.AddWithValue("@idEstatus", 1);
+                                insertCmd.Parameters.AddWithValue("@idRol", idRol);
+                                insertCmd.Parameters.AddWithValue("@nombre", req.Nombre.Trim());
+                                insertCmd.Parameters.AddWithValue("@apellidoP", req.ApellidoPaterno.Trim());
+                                insertCmd.Parameters.AddWithValue("@apellidoM", req.ApellidoMaterno.Trim());
+                                insertCmd.Parameters.AddWithValue("@correo", payload.Email);
+                                insertCmd.Parameters.AddWithValue("@password", hashAleatorio);
+                                insertCmd.Parameters.AddWithValue("@telefono", req.Telefono.Trim());
+                                insertCmd.Parameters.AddWithValue("@fechaNacimiento", fechaNac);
+                                insertCmd.ExecuteNonQuery();
+                                idNuevoUsuario = insertCmd.LastInsertedId;
+                            }
+
+                            using (MySqlCommand pacienteCmd = new MySqlCommand("INSERT INTO pacientes (id_Usuario) VALUES (@idUsuario)", conn, tx))
+                            {
+                                pacienteCmd.Parameters.AddWithValue("@idUsuario", idNuevoUsuario);
+                                pacienteCmd.ExecuteNonQuery();
+                            }
+
+                            tx.Commit();
+
+                            return Ok(new { idUsuario = idNuevoUsuario, email = payload.Email });
+                        }
+                        catch
+                        {
+                            tx.Rollback();
+                            throw;
+                        }
+                    }
+                }
+            }
+            catch (InvalidJwtException)
+            {
+                return Unauthorized(new { error = "Token de Google inválido o expirado." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = "Error en el servidor al registrar con Google. Detalles: " + ex.Message });
             }
         }
 
@@ -230,7 +421,6 @@ namespace backend_CLARA.Controllers
                 {
                     conn.Open();
 
-                    // Extraemos la contraseña actual de la BD para asegurarnos de que no esté reciclando su contraseña
                     string queryPass = "SELECT password_Usuario FROM usuarios WHERE email_Usuario = @correo";
                     string dbPass = "";
 
@@ -238,10 +428,9 @@ namespace backend_CLARA.Controllers
                     {
                         cmd.Parameters.AddWithValue("@correo", correoSeguro);
                         var result = cmd.ExecuteScalar();
-                        if (result != null) dbPass = result.ToString();
+                        if (result != null && result != DBNull.Value) dbPass = result.ToString();
                     }
 
-                    // Hacemos validación híbrida por si estaba en texto plano o en hash
                     bool isSame = false;
                     if (dbPass.StartsWith("$2") && dbPass.Length >= 59)
                         isSame = BCrypt.Net.BCrypt.Verify(request.NuevaPassword, dbPass);
@@ -253,7 +442,6 @@ namespace backend_CLARA.Controllers
                         return BadRequest(new { error = "La nueva contraseña no puede ser igual a la anterior." });
                     }
 
-                    // ENCRIPTAMOS ANTES DE ACTUALIZAR
                     string newHash = BCrypt.Net.BCrypt.HashPassword(request.NuevaPassword);
 
                     string queryUpdate = "UPDATE usuarios SET password_Usuario = @newpass WHERE email_Usuario = @correo";
@@ -275,8 +463,23 @@ namespace backend_CLARA.Controllers
         }
 
         // ====================================================================
-        // MÉTODO AUXILIAR PARA CORREOS 
+        // AUXILIARES
         // ====================================================================
+        private async Task<GoogleJsonWebSignature.Payload> ValidarTokenGoogle(string idToken)
+        {
+            var settings = new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { GOOGLE_CLIENT_ID }
+            };
+
+            var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, settings);
+
+            if (!payload.EmailVerified)
+                throw new InvalidJwtException("El correo de Google no está verificado.");
+
+            return payload;
+        }
+
         private void EnviarCorreoMagico(string destinatario, string token)
         {
             string miCorreo = "farmacia4850@gmail.com";
@@ -308,5 +511,27 @@ namespace backend_CLARA.Controllers
                 }
             }
         }
+    }
+}
+
+// ====================================================================
+// MODELOS NUEVOS (si prefieres, muévelos a tu carpeta Models)
+// ====================================================================
+namespace backend_CLARA.Models
+{
+    public class GoogleLoginRequest
+    {
+        public string IdToken { get; set; }
+    }
+
+    public class GoogleRegistroRequest
+    {
+        public string IdToken { get; set; }
+        public int IdGenero { get; set; }
+        public string Nombre { get; set; }
+        public string ApellidoPaterno { get; set; }
+        public string ApellidoMaterno { get; set; }
+        public string Telefono { get; set; }
+        public string FechaNacimiento { get; set; }   // "yyyy-MM-dd"
     }
 }
