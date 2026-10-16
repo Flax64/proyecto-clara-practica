@@ -1,0 +1,55 @@
+services:
+  # ==========================================
+  # 1. FRONTEND (Servidor Web Nginx)
+  # ==========================================
+  frontend-clara:
+    image: nginx:alpine          # Usamos una versión súper ligera de Nginx
+    container_name: web_farmacia
+    ports:
+      - "8080:80"                  # Expone el puerto web estándar hacia internet
+    volumes:
+      - ./frontend_CLARA:/usr/share/nginx/html  # Inyecta tu carpeta 'frontend' directo al motor de Nginx
+    networks:
+      - clara-red
+    restart: always
+
+  # ==========================================
+  # 2. BACKEND (Tu API en C#)
+  # ==========================================
+  backend-clara:
+    build: .
+    image: api-clara:latest
+    container_name: api_farmacia
+    environment:
+      TZ: "America/Monterrey"
+      ASPNETCORE_URLS: "http://+:5133"
+    ports:
+      - "5133:5133"              # Expuesto para que el JavaScript del cliente pueda consultarlo
+    depends_on:
+      - mysql-clara
+    networks:
+      - clara-red
+    restart: always
+
+  # ==========================================
+  # 3. BASE DE DATOS (MySQL)
+  # ==========================================
+  mysql-clara:
+    image: mysql:8.0
+    container_name: db_farmacia
+    environment:
+      MYSQL_ROOT_PASSWORD: "KameHameH4!"
+      MYSQL_DATABASE: "farmacia"
+      TZ: "America/Monterrey"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./Tablas.sql:/docker-entrypoint-initdb.d/Tablas.sql
+    networks:
+      - clara-red
+    restart: always
+
+volumes:
+  mysql_data:
+
+networks:
+  clara-red:
