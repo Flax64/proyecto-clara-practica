@@ -112,29 +112,6 @@ namespace backend_CLARA.Controllers
             }
         }
 
-        public IActionResult EvaluarCredencialesLogin(int? idUsuario, string dbPassword, string estatusUsuario, string passwordIngresada, out bool needsUpgrade)
-        {
-            needsUpgrade = false;
-            if (string.Equals(estatusUsuario, "Inactivo", StringComparison.OrdinalIgnoreCase))
-                return Unauthorized(new { error = "Tu cuenta se encuentra inactiva. Contacta al administrador." });
-
-            if (idUsuario != null && dbPassword != null)
-            {
-                bool isValid = false;
-                if (dbPassword.StartsWith("$2") && dbPassword.Length >= 59)
-                    isValid = BCrypt.Net.BCrypt.Verify(passwordIngresada, dbPassword);
-                else if (dbPassword == passwordIngresada)
-                {
-                    isValid = true;
-                    needsUpgrade = true;
-                }
-
-                if (isValid)
-                    return Ok(new { message = "AUTORIZADO", idUsuario = idUsuario.Value });
-            }
-            return Unauthorized(new { error = "Usuario o contraseña incorrectos." });
-        }
-
         // ====================================================================
         // LOGIN CON GOOGLE
         // Valida el idToken. Si el correo existe -> devuelve idUsuario.
@@ -210,6 +187,38 @@ namespace backend_CLARA.Controllers
             {
                 return StatusCode(500, new { error = "Error en el servidor al iniciar sesión con Google. Detalles: " + ex.Message });
             }
+        }
+
+        public IActionResult EvaluarCredencialesLogin(int? idUsuario, string dbPassword, string estatusUsuario, string passwordIngresada, out bool needsUpgrade)
+        {
+            needsUpgrade = false;
+
+            if (string.Equals(estatusUsuario, "Inactivo", StringComparison.OrdinalIgnoreCase))
+            {
+                return Unauthorized(new { error = "Tu cuenta se encuentra inactiva. Contacta al administrador." });
+            }
+
+            if (idUsuario != null && dbPassword != null)
+            {
+                bool isValid = false;
+
+                if (dbPassword.StartsWith("$2") && dbPassword.Length >= 59)
+                {
+                    isValid = BCrypt.Net.BCrypt.Verify(passwordIngresada, dbPassword);
+                }
+                else if (dbPassword == passwordIngresada)
+                {
+                    isValid = true;
+                    needsUpgrade = true;
+                }
+
+                if (isValid)
+                {
+                    return Ok(new { message = "AUTORIZADO", idUsuario = idUsuario.Value });
+                }
+            }
+
+            return Unauthorized(new { error = "Usuario o contraseña incorrectos." });
         }
 
         // ====================================================================
