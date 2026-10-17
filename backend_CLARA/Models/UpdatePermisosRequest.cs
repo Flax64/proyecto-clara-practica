@@ -2,6 +2,6 @@
 {
     public class UpdatePermisosRequest
     {
-        public List<int> PermisosIds { get; set; }
+        public List<int> PermisosIds { get; set; } = new();
     }
 }
