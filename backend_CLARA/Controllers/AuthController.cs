@@ -189,6 +189,38 @@ namespace backend_CLARA.Controllers
             }
         }
 
+        public IActionResult EvaluarCredencialesLogin(int? idUsuario, string dbPassword, string estatusUsuario, string passwordIngresada, out bool needsUpgrade)
+        {
+            needsUpgrade = false;
+
+            if (string.Equals(estatusUsuario, "Inactivo", StringComparison.OrdinalIgnoreCase))
+            {
+                return Unauthorized(new { error = "Tu cuenta se encuentra inactiva. Contacta al administrador." });
+            }
+
+            if (idUsuario != null && dbPassword != null)
+            {
+                bool isValid = false;
+
+                if (dbPassword.StartsWith("$2") && dbPassword.Length >= 59)
+                {
+                    isValid = BCrypt.Net.BCrypt.Verify(passwordIngresada, dbPassword);
+                }
+                else if (dbPassword == passwordIngresada)
+                {
+                    isValid = true;
+                    needsUpgrade = true;
+                }
+
+                if (isValid)
+                {
+                    return Ok(new { message = "AUTORIZADO", idUsuario = idUsuario.Value });
+                }
+            }
+
+            return Unauthorized(new { error = "Usuario o contraseña incorrectos." });
+        }
+
         // ====================================================================
         // REGISTRO CON GOOGLE (completa los datos que Google no entrega)
         // El correo se toma del token, nunca del cuerpo de la petición.
