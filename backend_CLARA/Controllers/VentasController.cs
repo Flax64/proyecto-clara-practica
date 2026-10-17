@@ -45,6 +45,7 @@ namespace backend_CLARA.Controllers
                                     horaFormateada = new DateTime(tiempo.Ticks).ToString("hh:mm tt");
                                 }
 
+#pragma warning disable CS8601 // Possible null reference assignment.
                                 listaVentas.Add(new VentaDTO
                                 {
                                     Id = Convert.ToInt32(reader["id_Venta"]),
@@ -56,6 +57,7 @@ namespace backend_CLARA.Controllers
                                     Metodo = reader["metodo_Pago"].ToString(),
                                     Estatus = reader["nombre_Estatus"].ToString()
                                 });
+#pragma warning restore CS8601 // Possible null reference assignment.
                             }
                         }
                     }
@@ -73,7 +75,7 @@ namespace backend_CLARA.Controllers
         public IActionResult EliminarVenta(int id)
         {
             try
-            { 
+            {
                 using (MySqlConnection conn = new MySqlConnection(_connectionString))
                 {
                     conn.Open();
@@ -269,7 +271,9 @@ namespace backend_CLARA.Controllers
                             if (reader.Read())
                             {
                                 venta.IdVenta = Convert.ToInt32(reader["id_Venta"]);
+#pragma warning disable CS8601 // Possible null reference assignment.
                                 venta.NombreCliente = reader["nombre_Cliente"].ToString();
+#pragma warning restore CS8601 // Possible null reference assignment.
                                 venta.IdMetodoPago = Convert.ToInt32(reader["id_Metodo"]);
                             }
                             else
@@ -292,8 +296,12 @@ namespace backend_CLARA.Controllers
                         {
                             while (readerDet.Read())
                             {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                                 string nombreBase = readerDet["nombre_Medicamento"].ToString();
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                                 string nombreMostrado = nombreBase;
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
 
                                 if (readerDet["concentracion_Valor"] != DBNull.Value && readerDet["concentracion_Unidad"] != DBNull.Value)
                                 {
@@ -304,6 +312,7 @@ namespace backend_CLARA.Controllers
                                 int cant = Convert.ToInt32(readerDet["cantidad"]);
                                 decimal precio = Convert.ToDecimal(readerDet["precio_Medicamento"]);
 
+#pragma warning disable CS8601 // Possible null reference assignment.
                                 venta.Detalles.Add(new FilaCarritoDTO
                                 {
                                     IdProducto = Convert.ToInt32(readerDet["id_Medicamento"]),
@@ -312,6 +321,7 @@ namespace backend_CLARA.Controllers
                                     P_Unit = precio,
                                     Subtotal = cant * precio
                                 });
+#pragma warning restore CS8601 // Possible null reference assignment.
                             }
                         }
                     }
@@ -431,11 +441,13 @@ namespace backend_CLARA.Controllers
                         {
                             while (reader.Read())
                             {
+#pragma warning disable CS8601 // Possible null reference assignment.
                                 metodos.Add(new MetodoPagoDTO
                                 {
                                     Id = Convert.ToInt32(reader["id_Metodo"]),
                                     Nombre = reader["nombre"].ToString()
                                 });
+#pragma warning restore CS8601 // Possible null reference assignment.
                             }
                         }
                     }
@@ -465,14 +477,20 @@ namespace backend_CLARA.Controllers
                     {
                         while (reader.Read())
                         {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                             string nombreBase = reader["nombre_Medicamento"].ToString();
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                             string nombreMostrado = nombreBase;
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
 
                             if (reader["concentracion_Valor"] != DBNull.Value && reader["concentracion_Unidad"] != DBNull.Value)
                             {
                                 decimal valorDecimal = Convert.ToDecimal(reader["concentracion_Valor"]);
                                 string valorLimpio = valorDecimal.ToString("0.##");
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                                 string unidad = reader["concentracion_Unidad"].ToString();
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                                 nombreMostrado = $"{nombreBase} ({valorLimpio}{unidad})";
                             }
 
@@ -579,7 +597,9 @@ namespace backend_CLARA.Controllers
                         {
                             while (reader.Read())
                             {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                                 string nombreMostrado = reader["nombre_Medicamento"].ToString();
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                                 if (reader["concentracion_Valor"] != DBNull.Value && reader["concentracion_Unidad"] != DBNull.Value)
                                 {
                                     decimal valorDecimal = Convert.ToDecimal(reader["concentracion_Valor"]);
