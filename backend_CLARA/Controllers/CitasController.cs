@@ -137,7 +137,9 @@ namespace backend_CLARA.Controllers
                 {
                     conn.Open();
 
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                     string errorDisponibilidad = ValidarDisponibilidad(conn, request.IdMedico, request.Fecha, request.Hora, 0);
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                     if (errorDisponibilidad != null)
                     {
                         return BadRequest(new { error = errorDisponibilidad });
@@ -199,7 +201,9 @@ namespace backend_CLARA.Controllers
                         return BadRequest(new { error = "Una cita que ya fue Confirmada no puede regresar a estado Pendiente." });
                     }
 
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                     string errorDisponibilidad = ValidarDisponibilidad(conn, request.IdMedico, request.Fecha, request.Hora, id);
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                     if (errorDisponibilidad != null)
                     {
                         return BadRequest(new { error = errorDisponibilidad });
@@ -294,7 +298,7 @@ namespace backend_CLARA.Controllers
             }
         }
 
-        private string ValidarDisponibilidad(MySqlConnection conn, int idMedico, string fecha, string hora, int idCitaIgnorar)
+        private string? ValidarDisponibilidad(MySqlConnection conn, int idMedico, string fecha, string hora, int idCitaIgnorar)
         {
             DateTime fechaParsed = DateTime.Parse(fecha);
             int diaSemanaMySql = (int)fechaParsed.DayOfWeek + 1;

@@ -109,6 +109,9 @@ namespace backend_CLARA.Controllers
                                         horaFormateada = new DateTime(tiempo.Ticks).ToString("hh:mm tt");
                                     }
 
+#pragma warning disable CS8604 // Possible null reference argument.
+#pragma warning disable CS8604 // Possible null reference argument.
+#pragma warning disable CS8604 // Possible null reference argument.
                                     historialDict[idConsulta] = new Dictionary<string, object>
                                     {
                                         { "IdConsulta", idConsulta },
@@ -122,6 +125,9 @@ namespace backend_CLARA.Controllers
                                         { "Altura", reader["altura"] },
                                         { "Receta", new List<object>() } // ✨ Creamos una lista vacía para guardar los medicamentos de esta consulta
                                     };
+#pragma warning restore CS8604 // Possible null reference argument.
+#pragma warning restore CS8604 // Possible null reference argument.
+#pragma warning restore CS8604 // Possible null reference argument.
                                 }
 
                                 // 2. Verificamos si en esta fila viene un medicamento adjunto (Gracias al LEFT JOIN)

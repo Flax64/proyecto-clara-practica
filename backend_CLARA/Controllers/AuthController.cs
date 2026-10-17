@@ -40,8 +40,8 @@ namespace backend_CLARA.Controllers
                     conn.Open();
 
                     int? idUsuario = null;
-                    string dbPassword = null;
-                    string estatusUsuario = null;
+                    string? dbPassword = null;
+                    string? estatusUsuario = null;
 
                     string Query = @"SELECT u.id_Usuario, u.password_Usuario, e.nombre 
                                      FROM usuarios u 
@@ -132,8 +132,8 @@ namespace backend_CLARA.Controllers
                     conn.Open();
 
                     int? idUsuario = null;
-                    string emailBD = null;
-                    string estatusUsuario = null;
+                    string? emailBD = null;
+                    string? estatusUsuario = null;
 
                     string query = @"SELECT u.id_Usuario, u.email_Usuario, e.nombre 
                                      FROM usuarios u 
@@ -460,14 +460,18 @@ namespace backend_CLARA.Controllers
                     {
                         cmd.Parameters.AddWithValue("@correo", correoSeguro);
                         var result = cmd.ExecuteScalar();
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                         if (result != null && result != DBNull.Value) dbPass = result.ToString();
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                     }
 
                     bool isSame = false;
+#pragma warning disable CS8602 // Dereference of a possibly null reference.
                     if (dbPass.StartsWith("$2") && dbPass.Length >= 59)
                         isSame = BCrypt.Net.BCrypt.Verify(request.NuevaPassword, dbPass);
                     else
                         isSame = (dbPass == request.NuevaPassword);
+#pragma warning restore CS8602 // Dereference of a possibly null reference.
 
                     if (isSame)
                     {
@@ -553,17 +557,17 @@ namespace backend_CLARA.Models
 {
     public class GoogleLoginRequest
     {
-        public string IdToken { get; set; }
+        public string IdToken { get; set; } = string.Empty;
     }
 
     public class GoogleRegistroRequest
     {
-        public string IdToken { get; set; }
+        public string IdToken { get; set; } = string.Empty;
         public int IdGenero { get; set; }
-        public string Nombre { get; set; }
-        public string ApellidoPaterno { get; set; }
-        public string ApellidoMaterno { get; set; }
-        public string Telefono { get; set; }
-        public string FechaNacimiento { get; set; }   // "yyyy-MM-dd"
+        public string Nombre { get; set; } = string.Empty;
+        public string ApellidoPaterno { get; set; } = string.Empty;
+        public string ApellidoMaterno { get; set; } = string.Empty;
+        public string Telefono { get; set; } = string.Empty;
+        public string FechaNacimiento { get; set; } = string.Empty;   // "yyyy-MM-dd"
     }
 }

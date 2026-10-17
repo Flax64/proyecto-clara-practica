@@ -121,7 +121,7 @@ namespace backend_CLARA.Controllers
                 using (MySqlConnection conn = new MySqlConnection(_connectionString))
                 {
                     conn.Open();
-                    object cabecera = null;
+                    object? cabecera = null;
                     using (var cmd = new MySqlCommand("SELECT id_Proveedor, total_Compra FROM compras WHERE id_Compra = @id", conn))
                     {
                         cmd.Parameters.AddWithValue("@id", id);

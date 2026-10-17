@@ -3,16 +3,16 @@
     public class UsuarioRead
     {
         public int IdUsuario { get; set; }
-        public string Nombre { get; set; }
-        public string ApellidoPaterno { get; set; }
-        public string ApellidoMaterno { get; set; }
-        public string Email { get; set; }
-        public string Rol { get; set; }
-        public string Telefono { get; set; }
-        public string FechaNacimiento { get; set; }
-        public string Genero { get; set; }
-        public string CedulaProfesional { get; set; }
-        public string Especialidad { get; set; }
-        public string Estatus { get; internal set; }
+        public string Nombre { get; set; } = string.Empty;
+        public string ApellidoPaterno { get; set; } = string.Empty;
+        public string ApellidoMaterno { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Rol { get; set; } = string.Empty;
+        public string Telefono { get; set; } = string.Empty;
+        public string FechaNacimiento { get; set; } = string.Empty;
+        public string Genero { get; set; } = string.Empty;
+        public string CedulaProfesional { get; set; } = string.Empty;
+        public string Especialidad { get; set; } = string.Empty;
+        public string Estatus { get; internal set; } = string.Empty;
     }
 }

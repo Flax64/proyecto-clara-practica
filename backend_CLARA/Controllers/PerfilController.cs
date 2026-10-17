@@ -33,6 +33,7 @@ namespace backend_CLARA.Controllers
                         {
                             if (reader.Read())
                             {
+#pragma warning disable CS8601 // Possible null reference assignment.
                                 PerfilResponse perfil = new PerfilResponse
                                 {
                                     Username = reader["username"] == DBNull.Value ? "" : reader["username"].ToString(),
@@ -44,6 +45,7 @@ namespace backend_CLARA.Controllers
                                     Correo = reader["email_Usuario"].ToString(),
                                     Genero = reader["nombre_Genero"].ToString()
                                 };
+#pragma warning restore CS8601 // Possible null reference assignment.
                                 return Ok(perfil);
                             }
                             else
@@ -133,11 +135,14 @@ namespace backend_CLARA.Controllers
                         {
                             return NotFound(new { message = "Usuario no encontrado." });
                         }
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                         passwordBD = result.ToString();
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                     }
 
                     // PASO B: Validar si la contraseña actual coincide (HÍBRIDO)
                     bool isValid = false;
+#pragma warning disable CS8602 // Dereference of a possibly null reference.
                     if (passwordBD.StartsWith("$2") && passwordBD.Length >= 59)
                     {
                         isValid = BCrypt.Net.BCrypt.Verify(request.PasswordActual, passwordBD);
@@ -146,6 +151,7 @@ namespace backend_CLARA.Controllers
                     {
                         isValid = (passwordBD == request.PasswordActual);
                     }
+#pragma warning restore CS8602 // Dereference of a possibly null reference.
 
                     if (!isValid)
                     {
