@@ -553,17 +553,17 @@ namespace backend_CLARA.Models
 {
     public class GoogleLoginRequest
     {
-        public string IdToken { get; set; }
+        public string IdToken { get; set; } = string.Empty;
     }
 
     public class GoogleRegistroRequest
     {
-        public string IdToken { get; set; }
+        public string IdToken { get; set; } = string.Empty;
         public int IdGenero { get; set; }
-        public string Nombre { get; set; }
-        public string ApellidoPaterno { get; set; }
-        public string ApellidoMaterno { get; set; }
-        public string Telefono { get; set; }
-        public string FechaNacimiento { get; set; }   // "yyyy-MM-dd"
+        public string Nombre { get; set; } = string.Empty;
+        public string ApellidoPaterno { get; set; } = string.Empty;
+        public string ApellidoMaterno { get; set; } = string.Empty;
+        public string Telefono { get; set; } = string.Empty;
+        public string FechaNacimiento { get; set; } = string.Empty;   // "yyyy-MM-dd"
     }
 }
