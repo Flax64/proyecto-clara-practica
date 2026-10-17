@@ -108,11 +108,13 @@ namespace backend_CLARA.Controllers
                     {
                         while (reader.Read())
                         {
+#pragma warning disable CS8601 // Possible null reference assignment.
                             listaGeneros.Add(new GeneroResponse
                             {
                                 IdGenero = Convert.ToInt32(reader["id_Genero"]),
                                 NombreGenero = reader["nombre"].ToString()
                             });
+#pragma warning restore CS8601 // Possible null reference assignment.
                         }
                     }
                 }
