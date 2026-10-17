@@ -2,6 +2,6 @@
 {
     public class SolicitarEnlaceRequest
     {
-        public string Correo { get; set; }
+        public string Correo { get; set; } = string.Empty;
     }
 }
